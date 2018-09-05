@@ -120,6 +120,8 @@ class TargetFollowingEnv(gym.Env):
         self.axis3d = None
         self.v = None
 
+        self.init_rendering = False;
+
     # Initializes a random quadratic bezier path of approximate length maxLen,
     # returns a list of points of length equal to maxTime / timesteps
     def initializeGoalPath(self, maxLen, maxTime, timesteps):
@@ -177,7 +179,7 @@ class TargetFollowingEnv(gym.Env):
         #Agent receives reward for maintaining the set distance from the goal
         dist_rew = 200 * (self.dist_rew - 0.5);
         #Agent receives reward for maintaining a similar height to the goal
-        height_rew = 70 * (self.height_rew - 0.5);
+        # height_rew = 70 * (self.height_rew - 0.5);
         #Agent receives a higher reward the longer it is alive
         # time_rew = max(10 * self.t, 50);
         time_rew = 30 * self.t;
@@ -195,7 +197,8 @@ class TargetFollowingEnv(gym.Env):
         # print(dist_rew);
         # print(height_rew);
 
-        return dist_rew, height_rew, time_rew, term_rew;
+        return dist_rew, time_rew, term_rew;
+        # return dist_rew, height_rew, time_rew, term_rew;
 
     def dist_reward(self, goal_dist, dist):
         """
@@ -221,8 +224,8 @@ class TargetFollowingEnv(gym.Env):
 
     def terminal(self, pos):
         xyz, zeta = pos
-        mask1 = 0#zeta > pi/2
-        mask2 = 0#zeta < -pi/2
+        mask1 = zeta > pi/2
+        mask2 = zeta < -pi/2
         mask3 = (np.abs(xyz[0]) > self.x_dim or
             np.abs(xyz[1]) > self.y_dim or
             np.abs(xyz[2]) > self.z_dim);
@@ -394,3 +397,60 @@ class TargetFollowingEnv(gym.Env):
         pl.pause(0.001)
         pl.draw()
 
+        # self.renderGl();
+
+    def renderGl(self):
+
+        import pyglet
+        import ratcave as rc
+        # import time
+
+        if(not self.init_rendering):
+            self.window = pyglet.window.Window();
+
+            obj_filename = rc.resources.obj_primitives
+            obj_reader = rc.WavefrontReader(obj_filename)
+            self.torus = obj_reader.get_mesh("Torus")
+            self.torus.position.xyz = 0, 0, -2
+            self.torus.rotation.xyz = 30,0,0
+            self.scene = rc.Scene(meshes=[self.torus])
+
+            self.init_rendering = True;
+
+            def update(t):
+                xyz, zeta, uvw, pqr = self.iris.get_state()
+
+                zeta = (np.degrees(zeta.ravel()));
+                zeta[0] += 90.0;
+                # zeta[1] *= -1;
+                # zeta[2] *= -1;
+
+                self.torus.position.xyz = 0, 0, -2;
+                self.torus.rotation.xyz = zeta.ravel();
+                pass;
+
+            @self.window.event
+            def on_draw():
+                
+                # start = time.time()
+
+                update(self.t);
+
+                with rc.default_shader:
+                    self.scene.draw()
+
+                # end = time.time();
+                # print("DRAW TIME: %f" %(end-start));
+                # print("FPS: %f" %(1.0 / (end-start)));
+
+        pyglet.clock.tick();
+        self.window.dispatch_events()
+        self.window.dispatch_event('on_draw')
+        self.window.flip()
+
+        # with rc.default_shader:
+        #     print('drawing scene');
+        #     self.scene.draw()
+
+
+            # pyglet.app.run();
